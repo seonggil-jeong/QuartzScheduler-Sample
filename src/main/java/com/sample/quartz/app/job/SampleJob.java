@@ -6,10 +6,9 @@ import org.quartz.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 
 /**
- *  an interface to be implemented by components that you wish to have executed by the scheduler
+ * an interface to be implemented by components that you wish to have executed by the scheduler
  */
 @Slf4j
 @Component
@@ -19,10 +18,13 @@ public class SampleJob implements Job {
 
 
     @Override
-    public void execute(JobExecutionContext context)
-            throws JobExecutionException {
-        System.out.println(this.getClass().getName() + "Sample Job Start! [ " + LocalDate.now() + " ]");
+    public void execute(JobExecutionContext context) throws JobExecutionException {
+        JobDataMap jobDataMap = context.getJobDetail().getJobDataMap();
 
+        log.info("userId : " + jobDataMap.get("userId"));
+        log.info("content : " + jobDataMap.get("content"));
+
+        log.info("[send Message] " + jobDataMap.get("content") + " to " + jobDataMap.get("userId"));
 
     }
 }

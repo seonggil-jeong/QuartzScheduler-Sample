@@ -1,12 +1,14 @@
 package com.sample.quartz;
 
 import com.sample.quartz.app.job.vo.CronJobRequest;
+import com.sample.quartz.app.job.vo.JobResponse;
 import com.sample.quartz.app.job.vo.SampleJobRequest;
 import com.sample.quartz.app.listener.JobsListener;
 import com.sample.quartz.app.listener.TriggersListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
+import org.quartz.impl.matchers.GroupMatcher;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.CronTriggerFactoryBean;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
@@ -17,9 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Managing Trigger and Job Creation
@@ -33,15 +33,13 @@ public class QuartzHandler {
     @PostConstruct
     public void init() {
         try {
-            // Initialization (DB, )
+            // Initialization (DB)
             scheduler.clear();
+            // add Listener
             scheduler.getListenerManager()
                     .addJobListener(new JobsListener());
             scheduler.getListenerManager()
                     .addTriggerListener(new TriggersListener());
-            Map<String, Object> paramsMap = new HashMap<>();
-            paramsMap.put("executeCount", 1);
-
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -52,56 +50,75 @@ public class QuartzHandler {
     public <T extends Job> void addJob(Class<? extends Job> job, SampleJobRequest request)
             throws SchedulerException {
 
-        JobDetail jobDetail = buildJobDetail(job, request.getJobName(), request.getJobDescription());
-        Trigger trigger = buildTrigger(request);
+        Map<String, Object> params = new HashMap<>();
+        params.put("content", request.getContent());
+        params.put("userId", request.getUserId());
 
-        if (scheduler.checkExists(jobDetail.getKey())) {
-            scheduler.deleteJob(jobDetail.getKey());
-            scheduler.scheduleJob(jobDetail, trigger);
-        } else {
-            scheduler.scheduleJob(jobDetail, trigger);
-        }
+        final JobDetail jobDetail = buildJobDetail(job, request.getName(), request.getGroup(), request.getDescription(), params);
+        final Trigger trigger = buildTrigger(request.getName(), request.getGroup(), request.getStartTime());
+
+        registerJobInScheduler(jobDetail, trigger);
     }
 
-    public <T extends Job> void addCronJob(Class<? extends Job> job, CronJobRequest request)
+    public <T extends Job> void addCronJob(Class<? extends Job> job, CronJobRequest request, Map params)
             throws SchedulerException {
 
-        JobDetail jobDetail = buildJobDetail(job, request.getJobName(), request.getJobDescription());
-        Trigger trigger = buildCronTrigger(request.getCronExpression());
+        final JobDetail jobDetail = buildJobDetail(job, request.getName(), request.getGroup(), request.getDescription(), params);
+        final Trigger trigger = buildCronTrigger(request.getCronExpression());
 
+        registerJobInScheduler(jobDetail, trigger);
+    }
+
+    public List<JobResponse> findAllActivatedJob() {
+        List<JobResponse> result = new ArrayList<>();
+        try {
+            for (String groupName : scheduler.getJobGroupNames()) {
+                log.info("groupName : " + groupName);
+
+                for (JobKey jobKey : scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName))) {
+                    List<Trigger> trigger = (List<Trigger>) scheduler.getTriggersOfJob(jobKey);
+
+                    result.add(JobResponse.builder()
+                            .jobName(jobKey.getName())
+                            .groupName(jobKey.getGroup())
+                            .scheduleTime(trigger.get(0).getStartTime().toString()).build());
+
+                }
+            }
+        } catch (SchedulerException e) {
+            e.printStackTrace();
+
+        }
+
+        return result;
+    }
+
+    private void registerJobInScheduler(final JobDetail jobDetail, final Trigger trigger) throws SchedulerException {
         if (scheduler.checkExists(jobDetail.getKey())) {
             scheduler.deleteJob(jobDetail.getKey());
             scheduler.scheduleJob(jobDetail, trigger);
         } else {
             scheduler.scheduleJob(jobDetail, trigger);
         }
+
     }
 
 
-    public <T extends Job> JobDetail buildJobDetail(Class<? extends Job> job, final String jobName, String jobDescription) {
+    public <T extends Job> JobDetail buildJobDetail(
+            Class<? extends Job> job, final String jobName, final String group,
+            String jobDescription, Map<String, Object> params) {
 
         JobDataMap jobDataMap = new JobDataMap();
-        jobDataMap.put("executeCount", 1);
+
+        if (params != null) {
+            jobDataMap.putAll(params);
+        }
 
         return JobBuilder.newJob(job)
-                .withIdentity(jobName)
+                .withIdentity(jobName, group)
                 .withDescription(jobDescription)
                 .usingJobData(jobDataMap)
                 .build();
-    }
-
-    private Trigger buildTrigger(final SampleJobRequest request) {
-        SimpleTriggerFactoryBean triggerFactory = new SimpleTriggerFactoryBean();
-
-        triggerFactory.setName(request.getJobName());
-        triggerFactory.setGroup(request.getJobGroup());
-        triggerFactory.setStartTime(localTimeToDate(request.getStartTime()));
-        triggerFactory.setRepeatCount(0);
-        triggerFactory.setRepeatInterval(0);
-
-        triggerFactory.afterPropertiesSet();
-        return triggerFactory.getObject();
-
     }
 
     private Trigger buildCronTrigger(String cronExp) {
@@ -118,6 +135,19 @@ public class QuartzHandler {
 
     }
 
+    private Trigger buildTrigger(final String name, final String group, final LocalTime startTime) {
+        SimpleTriggerFactoryBean triggerFactory = new SimpleTriggerFactoryBean();
+
+        triggerFactory.setName(name);
+        triggerFactory.setGroup(group);
+        triggerFactory.setStartTime(localTimeToDate(startTime));
+        triggerFactory.setRepeatCount(0);
+        triggerFactory.setRepeatInterval(0);
+
+        triggerFactory.afterPropertiesSet();
+        return triggerFactory.getObject();
+
+    }
 
     private Date localTimeToDate(final LocalTime startTime) {
         Instant instant = startTime.atDate(LocalDate

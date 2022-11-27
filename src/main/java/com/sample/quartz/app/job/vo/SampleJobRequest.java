@@ -2,19 +2,23 @@ package com.sample.quartz.app.job.vo;
 
 import lombok.Getter;
 
+import javax.validation.constraints.NotNull;
 import java.time.LocalTime;
+import java.util.UUID;
 
 @Getter
-public class SampleJobRequest extends JobRequest {
-    private final LocalTime startTime; // 지연 시간
-    private final Integer repeatCount;
+public class SampleJobRequest extends BaseJobRequest {
+    private final UUID userId; // userId
+    private final LocalTime startTime; // Desired start time
+    private final String content;
 
     private SampleJobRequest(Builder builder) {
+        super.setName(builder.name);
+        super.setGroup(builder.group);
+        super.setDescription(builder.description);
+        userId = builder.userId;
         startTime = builder.startTime;
-        repeatCount = builder.repeatCount;
-        super.setJobName(builder.jobName);
-        super.setJobGroup(builder.jobGroup);
-        super.setJobDescription(builder.jobDescription);
+        content = builder.content;
     }
 
     public static Builder builder() {
@@ -23,11 +27,12 @@ public class SampleJobRequest extends JobRequest {
 
 
     public static final class Builder {
+        private @NotNull(message = "name cannot be Null") String name;
+        private @NotNull(message = "group cannot be Null") String group;
+        private String description;
+        private UUID userId;
         private LocalTime startTime;
-        private String jobName;
-        private String jobGroup;
-        private String jobDescription;
-        private Integer repeatCount;
+        private String content;
 
         private Builder() {
         }
@@ -36,28 +41,33 @@ public class SampleJobRequest extends JobRequest {
             return new Builder();
         }
 
-        public Builder delaySeconds(LocalTime val) {
+        public Builder name(@NotNull(message = "name cannot be Null") String val) {
+            name = val;
+            return this;
+        }
+
+        public Builder group(@NotNull(message = "group cannot be Null") String val) {
+            group = val;
+            return this;
+        }
+
+        public Builder description(String val) {
+            description = val;
+            return this;
+        }
+
+        public Builder userId(UUID val) {
+            userId = val;
+            return this;
+        }
+
+        public Builder startTime(LocalTime val) {
             startTime = val;
             return this;
         }
 
-        public Builder jobName(String val) {
-            jobName = val;
-            return this;
-        }
-
-        public Builder jobGroup(String val) {
-            jobGroup = val;
-            return this;
-        }
-
-        public Builder jobDescription(String val) {
-            jobDescription = val;
-            return this;
-        }
-
-        public Builder repeatCount(Integer val) {
-            repeatCount = val;
+        public Builder content(String val) {
+            content = val;
             return this;
         }
 

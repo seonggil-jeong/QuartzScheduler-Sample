@@ -8,7 +8,7 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.scheduling.quartz.SpringBeanJobFactory;
 
 /**
- * Job Class 에서 DI 지원을 위한 Factory
+ * Support Di in JobClass
  */
 public class AutoWiringSpringBeanJobFactory extends SpringBeanJobFactory implements ApplicationContextAware {
     private transient AutowireCapableBeanFactory beanFactory;
